@@ -45,24 +45,54 @@ async function loadData() {
 
 function populateSelector() {
   const select = document.getElementById('characterSelect');
-  const randomBtn = document.getElementById('randomBtn');
+  select.innerHTML = '';
 
+  // Group characters by universe
+  const grouped = {};
   characters.forEach(c => {
-    select.add(new Option(c.codename, c.id));
+    const universe = c.universe || 'Unknown';
+    if (!grouped[universe]) grouped[universe] = [];
+    grouped[universe].push(c);
   });
 
-  select.onchange = () => renderCardById(select.value);
-  randomBtn.onclick = () => randomPick(select);
+  // Sort universes
+  Object.keys(grouped)
+    .sort()
+    .forEach(universe => {
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = universe;
+
+      grouped[universe]
+        .sort((a, b) => a.codename.localeCompare(b.codename))
+        .forEach(c => {
+          optgroup.appendChild(new Option(c.codename, c.id));
+        });
+
+      select.appendChild(optgroup);
+    });
+
+  // 🔑 IMPORTANT: wire change to existing render logic
+  select.addEventListener('change', () => {
+    renderCardById(select.value);
+  });
+
+  // 🔑 Random button
+  document.getElementById('randomBtn').onclick = () => {
+    randomPick(select);
+  };
 
   // Initial render
   randomPick(select);
 }
+
+
 
 function randomPick(select) {
   const r = characters[Math.floor(Math.random() * characters.length)];
   select.value = r.id;
   renderCardById(r.id);
 }
+
 
 /*************************************************
  * RENDERING
