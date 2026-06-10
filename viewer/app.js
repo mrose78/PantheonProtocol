@@ -277,12 +277,11 @@ function buildCard(c, imgUrl) {
     </div>
   `;
 
-  card.appendChild(front);
-  card.appendChild(back);
-  card.innerHTML = `<div class="card-inner"></div>`;
-  const inner = card.querySelector('.card-inner');
+  const inner = document.createElement('div');
+  inner.className = 'card-inner';
   inner.appendChild(front);
   inner.appendChild(back);
+  card.appendChild(inner);
 
   // Tap/click to flip (works on both mobile and desktop)
   card.addEventListener('click', () => {
