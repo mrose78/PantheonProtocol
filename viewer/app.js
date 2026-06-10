@@ -284,16 +284,16 @@ function buildCard(c, imgUrl) {
   inner.appendChild(front);
   inner.appendChild(back);
 
-  // Notes tooltip
-  const tooltip = document.createElement('div');
-  tooltip.className = 'notes-tooltip';
-  document.body.appendChild(tooltip);
+  // Tap/click to flip (works on both mobile and desktop)
+  card.addEventListener('click', () => {
+    card.classList.toggle('flipped');
+  });
 
-  const infoIcon = back.querySelector('.notes-label');
-  if (infoIcon) {
-    infoIcon.style.cursor = 'help';
-    infoIcon.title = c.notes || 'No notes';
-  }
+  // Hint label
+  const hint = document.createElement('div');
+  hint.className = 'flip-hint';
+  hint.textContent = 'Tap to flip';
+  card.appendChild(hint);
 
   return card;
 }

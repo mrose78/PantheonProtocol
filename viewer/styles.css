@@ -61,7 +61,7 @@ select:focus { outline: none; border-color: #9d4edd; }
 .card-container {
   display: flex;
   justify-content: center;
-  padding: 24px 16px 40px;
+  padding: 24px 16px 56px;
 }
 
 /* ── THE CARD ── */
@@ -80,8 +80,27 @@ select:focus { outline: none; border-color: #9d4edd; }
   transform-style: preserve-3d;
 }
 
-.card:hover .card-inner {
+.card.flipped .card-inner {
   transform: rotateY(180deg);
+}
+
+/* Tap / click hint */
+.flip-hint {
+  position: absolute;
+  bottom: -22px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  color: #6b5c8a;
+  letter-spacing: 1px;
+  font-family: 'Rajdhani', sans-serif;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.card.flipped .flip-hint {
+  display: none;
 }
 
 .card-face {
