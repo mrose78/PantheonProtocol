@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pantheon Protocol – Browse All</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <header class="filter-bar">
+    <div class="filter-row filter-row-search">
+      <input type="text" id="searchInput" placeholder="🔍 Search by name, real name, power, notes…" />
+      <button id="clearBtn" title="Clear all filters">✕ Clear</button>
+    </div>
+    <div class="filter-row filter-row-selects">
+      <select id="universeFilter"><option value="">All Universes</option></select>
+      <select id="alignmentFilter"><option value="">All Alignments</option></select>
+      <select id="teamFilter"><option value="">All Teams</option></select>
+      <select id="speciesFilter"><option value="">All Species</option></select>
+      <select id="threatFilter"><option value="">All Threat Levels</option></select>
+      <select id="sortFilter">
+        <option value="name">Sort: Name (A–Z)</option>
+        <option value="id">Sort: Card #</option>
+        <option value="threat">Sort: Threat Level</option>
+      </select>
+      <a class="nav-link" href="index.html">Team View</a>
+      <a class="nav-link" href="battle.html">⚔ Battle</a>
+    </div>
+  </header>
+
+  <main class="team-container">
+    <div class="team-header" id="resultsHeader"></div>
+    <div class="card-grid" id="cardGrid"></div>
+    <div class="no-results" id="noResults" style="display:none;">
+      No characters match your filters.
+    </div>
+  </main>
+
+  <script src="browse.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pantheon Protocol – Battle</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <header class="controls">
+    <div class="mode-toggle">
+      <button id="mode1v1" class="mode-btn active">1 vs 1</button>
+      <button id="modeTeam" class="mode-btn">Team vs Team</button>
+    </div>
+    <a class="nav-link" href="browse.html">Browse All</a>
+    <a class="nav-link" href="index.html">Team View</a>
+  </header>
+
+  <main class="battle-container">
+
+    <!-- ── 1v1 PICKER ── -->
+    <section id="duelPicker" class="picker-row">
+      <div class="picker-side">
+        <label>Fighter 1</label>
+        <select id="fighterASelect"></select>
+      </div>
+      <div class="picker-vs">VS</div>
+      <div class="picker-side">
+        <label>Fighter 2</label>
+        <select id="fighterBSelect"></select>
+      </div>
+    </section>
+
+    <!-- ── TEAM PICKER ── -->
+    <section id="teamPicker" class="picker-row" style="display:none;">
+      <div class="picker-side">
+        <label>Team 1</label>
+        <select id="teamASelect"></select>
+      </div>
+      <div class="picker-vs">VS</div>
+      <div class="picker-side">
+        <label>Team 2</label>
+        <select id="teamBSelect"></select>
+      </div>
+    </section>
+
+    <div class="battle-action-row">
+      <button id="fightBtn" class="fight-btn">⚔ Start Battle</button>
+    </div>
+
+    <!-- ── PREVIEW CARDS ── -->
+    <div class="battle-preview" id="battlePreview"></div>
+
+    <!-- ── RESULTS ── -->
+    <div id="battleResults"></div>
+
+  </main>
+
+  <script src="battle.js" type="module"></script>
+</body>
+</html>
