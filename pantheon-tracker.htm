@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pantheon Protocol - Character Tracker</title>
+  <!-- PapaParse for parsing CSV data -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    header {
+      max-width: 1200px;
+      margin: 0 auto 2rem auto;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .stat-card .label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-card .value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      margin-top: 0.25rem;
+    }
+
+    .stat-card.missing .value {
+      color: var(--warning);
+    }
+
+    .stat-card.has-img .value {
+      color: var(--success);
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      background: var(--card-bg);
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      align-items: center;
+    }
+
+    .search-box {
+      flex: 2;
+      min-width: 250px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      background: var(--bg-color);
+      color: var(--text-main);
+      font-size: 1rem;
+    }
+
+    .filter-group, .view-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--card-border);
+      background: var(--bg-color);
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn:hover {
+      background: var(--card-border);
+      color: var(--text-main);
+    }
+
+    .btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    /* CARD GRID VIEW */
+    .grid-view {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    .card-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .character-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .badge-codename {
+      font-size: 0.8rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 20px;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      white-space: nowrap;
+    }
+
+    .badge-status {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .badge-status.has-img {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--success);
+    }
+
+    .badge-status.needs-img {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+    }
+
+    .image-gallery {
+      display: flex;
+      gap: 0.5rem;
+      padding: 1rem;
+      overflow-x: auto;
+      background: rgba(0,0,0,0.2);
+      min-height: 130px;
+      align-items: center;
+    }
+
+    .image-container {
+      flex: 0 0 auto;
+      width: 100px;
+      height: 100px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+      background: #000;
+    }
+
+    .image-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .no-images-placeholder {
+      width: 100%;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+
+    .card-body {
+      padding: 1.25rem;
+      flex-grow: 1;
+      font-size: 0.9rem;
+    }
+
+    .attribute-list {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.4rem 1rem;
+    }
+
+    .attr-name {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .attr-value {
+      word-break: break-word;
+    }
+
+    /* TABLE / LIST GRID VIEW */
+    .table-view {
+      max-width: 1200px;
+      margin: 0 auto;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card-bg);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+    }
+
+    th, td {
+      padding: 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    th {
+      background: rgba(0,0,0,0.3);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .table-thumbs {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+
+    .table-thumb {
+      width: 42px;
+      height: 42px;
+      border-radius: 4px;
+      object-fit: cover;
+      border: 1px solid var(--card-border);
+    }
+
+    #loading {
+      text-align: center;
+      padding: 4rem;
+      font-size: 1.2rem;
+      color: var(--text-muted);
+    }
+
+    .refresh-btn {
+      padding: 0.5rem 1rem;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .refresh-btn:hover {
+      background: var(--accent);
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <h1>⚡ Pantheon Protocol Tracker</h1>
+      <button class="refresh-btn" onclick="loadData()">Reload Data</button>
+    </div>
+    <p class="subtitle">Live database monitor & missing asset finder</p>
+
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="label">Total Characters</div>
+        <div class="value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card has-img">
+        <div class="label">With Images</div>
+        <div class="value" id="stat-with-img">0</div>
+      </div>
+      <div class="stat-card missing">
+        <div class="label">Needs Images</div>
+        <div class="value" id="stat-missing">0</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search characters, codenames, attributes..." oninput="applyFilters()">
+      </div>
+      
+      <!-- Status Filter -->
+      <div class="filter-group">
+        <button class="btn active filter-btn" data-filter="all" onclick="setFilter('all')">All</button>
+        <button class="btn filter-btn" data-filter="missing" onclick="setFilter('missing')">Needs Images</button>
+        <button class="btn filter-btn" data-filter="complete" onclick="setFilter('complete')">Has Images</button>
+      </div>
+
+      <!-- View Toggle -->
+      <div class="view-group">
+        <button class="btn active view-btn" data-view="card" onclick="setView('card')" title="Card View">🎴 Cards</button>
+        <button class="btn view-btn" data-view="table" onclick="setView('table')" title="Grid/Table View">📊 Grid Table</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="loading">Loading database from Google Sheets...</div>
+  <div id="display-container"></div>
+
+  <script>
+    const CHARACTERS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGfw_4b0iqj-AkMzNQIJdTnr9q6E1O5ugB_XsPPxyt-OHrtHTXENmKgxqVIw9rHcpFGjCymtCbzMKM/pub?gid=0&single=true&output=csv';
+    const IMAGES_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGfw_4b0iqj-AkMzNQIJdTnr9q6E1O5ugB_XsPPxyt-OHrtHTXENmKgxqVIw9rHcpFGjCymtCbzMKM/pub?gid=1288957876&single=true&output=csv';
+
+    let characterData = [];
+    let currentFilter = 'all';
+    let currentView = 'card';
+
+    async function fetchCSV(url) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(url, {
+          download: true,
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => resolve(results.data),
+          error: (err) => reject(err)
+        });
+      });
+    }
+
+    // Helper to get field value by checking multiple candidate header names case-insensitively
+    function getFieldValue(obj, candidateKeys) {
+      const keys = Object.keys(obj);
+      for (const candidate of candidateKeys) {
+        const foundKey = keys.find(k => k.trim().toLowerCase() === candidate.toLowerCase());
+        if (foundKey && obj[foundKey] !== undefined && String(obj[foundKey]).trim() !== '') {
+          return { key: foundKey, value: String(obj[foundKey]).trim() };
+        }
+      }
+      return { key: null, value: '' };
+    }
+
+    async function loadData() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('display-container').innerHTML = '';
+
+      try {
+        const [rawCharacters, rawImages] = await Promise.all([
+          fetchCSV(CHARACTERS_CSV),
+          fetchCSV(IMAGES_CSV)
+        ]);
+
+        // Map images by Character Key/ID
+        const imageMap = {};
+        rawImages.forEach(img => {
+          const charId = getFieldValue(img, ['character id', 'character_id', 'character', 'id', 'name', 'id_number']).value || Object.values(img)[0];
+          const imgUrl = getFieldValue(img, ['image url', 'url', 'image', 'link']).value || Object.values(img)[1];
+          
+          if (charId) {
+            const key = String(charId).trim().toLowerCase();
+            if (!imageMap[key]) imageMap[key] = [];
+            if (imgUrl) imageMap[key].push(imgUrl);
+          }
+        });
+
+        // Combine character data with associated images and codename
+        characterData = rawCharacters.map(char => {
+          const idRes = getFieldValue(char, ['id', 'character id', 'character_id', 'id_number']);
+          const charIdKey = idRes.value || Object.values(char)[0] || '';
+          const lookupKey = String(charIdKey).trim().toLowerCase();
+          const images = imageMap[lookupKey] || [];
+
+          // Extract Codename flexibly
+          const codenameRes = getFieldValue(char, ['codename', 'code name', 'code_name', 'alias', 'hero name', 'hero_name', 'hero', 'character name', 'name']);
+          const codename = codenameRes.value || charIdKey || 'No Codename';
+
+          // Extract Name
+          const nameRes = getFieldValue(char, ['name', 'character name', 'character', 'real_name', 'real name']);
+          const name = nameRes.value || codename || charIdKey || 'Unnamed Character';
+
+          return {
+            raw: char,
+            idKey: charIdKey,
+            idHeaderKey: idRes.key,
+            codename: codename,
+            codenameHeaderKey: codenameRes.key,
+            name: name,
+            images: images
+          };
+        });
+
+        updateStats();
+        applyFilters();
+
+        document.getElementById('loading').style.display = 'none';
+      } catch (error) {
+        console.error('Failed to fetch CSV data:', error);
+        document.getElementById('loading').innerHTML = `<p style="color: var(--danger);">Error loading sheet data. Check console for details or verify URL permissions.</p>`;
+      }
+    }
+
+    function updateStats() {
+      const total = characterData.length;
+      const withImg = characterData.filter(c => c.images.length > 0).length;
+      const missing = total - withImg;
+
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-with-img').textContent = withImg;
+      document.getElementById('stat-missing').textContent = missing;
+    }
+
+    function setFilter(filterType) {
+      currentFilter = filterType;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === filterType);
+      });
+      applyFilters();
+    }
+
+    function setView(viewType) {
+      currentView = viewType;
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-view') === viewType);
+      });
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const container = document.getElementById('display-container');
+      container.innerHTML = '';
+
+      const filtered = characterData.filter(item => {
+        const hasImg = item.images.length > 0;
+        if (currentFilter === 'missing' && hasImg) return false;
+        if (currentFilter === 'complete' && !hasImg) return false;
+
+        if (query) {
+          const searchContent = JSON.stringify(item.raw).toLowerCase();
+          return searchContent.includes(query);
+        }
+
+        return true;
+      });
+
+      if (currentView === 'card') {
+        renderCardView(filtered, container);
+      } else {
+        renderTableView(filtered, container);
+      }
+    }
+
+    function renderCardView(items, container) {
+      const grid = document.createElement('div');
+      grid.className = 'grid-view';
+
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const hasImages = item.images.length > 0;
+
+        let attrRows = '';
+        Object.entries(item.raw).forEach(([key, val]) => {
+          if (val && String(val).trim() !== '') {
+            attrRows += `
+              <span class="attr-name">${escapeHtml(key)}:</span>
+              <span class="attr-value">${escapeHtml(val)}</span>
+            `;
+          }
+        });
+
+        let galleryHtml = '';
+        if (hasImages) {
+          galleryHtml = item.images.map(url => `
+            <div class="image-container">
+              <a href="${escapeHtml(url)}" target="_blank">
+                <img src="${escapeHtml(url)}" alt="Character Image" loading="lazy" onerror="this.src='https://via.placeholder.com/150?text=Error'">
+              </a>
+            </div>
+          `).join('');
+        } else {
+          galleryHtml = `<div class="no-images-placeholder">No image mapped</div>`;
+        }
+
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="character-name">${escapeHtml(item.codename)}</div>
+            <span class="badge-codename" title="ID">ID: ${escapeHtml(item.idKey)}</span>
+          </div>
+          <div class="image-gallery">
+            ${galleryHtml}
+          </div>
+          <div class="card-body">
+            <div class="attribute-list">
+              ${attrRows}
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+
+      container.appendChild(grid);
+    }
+
+    function renderTableView(items, container) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-view';
+
+      if (items.length === 0) {
+        wrapper.innerHTML = `<p style="text-align:center; padding: 2rem; color: var(--text-muted);">No records match your filters.</p>`;
+        container.appendChild(wrapper);
+        return;
+      }
+
+      // Collect rest of dynamic headers, omitting ID, Codename, Status, Images to prevent duplicates
+      const dynamicHeaders = new Set();
+
+      items.forEach(item => {
+        const skipKeys = new Set([
+          (item.idHeaderKey || '').toLowerCase(),
+          (item.codenameHeaderKey || '').toLowerCase()
+        ]);
+
+        Object.keys(item.raw).forEach(k => {
+          const lowerK = k.trim().toLowerCase();
+          if (!skipKeys.has(lowerK) && lowerK !== 'status' && lowerK !== 'images') {
+            dynamicHeaders.add(k);
+          }
+        });
+      });
+
+      // Fixed order: ID, CODENAME, STATUS, IMAGES, ...Dynamic remaining fields
+      const headerArray = ['ID', 'CODENAME', 'STATUS', 'IMAGES', ...Array.from(dynamicHeaders)];
+
+      let tableHtml = `<table><thead><tr>`;
+      headerArray.forEach(h => {
+        tableHtml += `<th>${escapeHtml(h)}</th>`;
+      });
+      tableHtml += `</tr></thead><tbody>`;
+
+      items.forEach(item => {
+        const hasImg = item.images.length > 0;
+        tableHtml += `<tr>`;
+
+        headerArray.forEach(h => {
+          if (h === 'ID') {
+            tableHtml += `<td><strong>${escapeHtml(item.idKey)}</strong></td>`;
+          } else if (h === 'CODENAME') {
+            tableHtml += `<td><span class="badge-codename">${escapeHtml(item.codename)}</span></td>`;
+          } else if (h === 'STATUS') {
+            const statusClass = hasImg ? 'has-img' : 'needs-img';
+            const statusText = hasImg ? 'Has Image' : 'Needs Image';
+            tableHtml += `<td><span class="badge-status ${statusClass}">${statusText}</span></td>`;
+          } else if (h === 'IMAGES') {
+            if (hasImg) {
+              const thumbs = item.images.map(url => 
+                `<a href="${escapeHtml(url)}" target="_blank"><img class="table-thumb" src="${escapeHtml(url)}" loading="lazy" onerror="this.style.display='none'"></a>`
+              ).join('');
+              tableHtml += `<td><div class="table-thumbs">${thumbs}</div></td>`;
+            } else {
+              tableHtml += `<td><span style="color:var(--text-muted); font-size:0.85rem;">None</span></td>`;
+            }
+          } else {
+            tableHtml += `<td>${escapeHtml(item.raw[h] || '')}</td>`;
+          }
+        });
+
+        tableHtml += `</tr>`;
+      });
+
+      tableHtml += `</tbody></table>`;
+      wrapper.innerHTML = tableHtml;
+      container.appendChild(wrapper);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Initial Load
+    loadData();
+  </script>
+</body>
+</html>
