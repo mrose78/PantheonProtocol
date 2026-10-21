@@ -42,6 +42,24 @@
         .stats-group { display: flex; gap: 12px; }
         .stats-item { display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 13px; }
 
+        /* --- GPS Telemetry HUD Overlay --- */
+        #gps-telemetry {
+            position: absolute;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 70px);
+            left: 12px;
+            z-index: 1000;
+            background: rgba(18, 18, 22, 0.88);
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #2ecc71;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
         /* --- Map Markers --- */
         .player-marker { display: flex; align-items: center; justify-content: center; width: 180px; height: 180px; position: relative; pointer-events: none; }
         .player-circle-inner { width: 16px; height: 16px; background-color: var(--marker-blue); border-radius: 50%; box-shadow: 0 0 14px rgba(0, 136, 255, 1); z-index: 2; border: 2px solid #fff; }
@@ -76,7 +94,6 @@
         .info-pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
         .pill { background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 20px; font-size: 11px; color: #ccc; border: 1px solid rgba(255,255,255,0.08); }
 
-        /* All Stats Display */
         .stats-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #777; font-weight: 700; margin: 12px 0 6px 0; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .stat-box { background: rgba(255,255,255,0.03); padding: 8px 10px; border-radius: 8px; font-size: 11px; border: 1px solid rgba(255,255,255,0.04); }
@@ -128,6 +145,14 @@
             <div class="stats-item"><span>💎</span> <strong>812</strong></div>
             <div class="stats-item"><span>💰</span> <strong id="gold-count">91,102</strong></div>
         </div>
+    </div>
+
+    <!-- Live GPS Coordinates Telemetry Display -->
+    <div id="gps-telemetry">
+        <div><strong>GPS LOCK:</strong> <span id="tele-status">INITIALIZING...</span></div>
+        <div>LAT: <span id="tele-lat">0.000000</span></div>
+        <div>LNG: <span id="tele-lng">0.000000</span></div>
+        <div>ACCURACY: <span id="tele-acc">--</span>m</div>
     </div>
 
     <!-- Full Character Card Popup Modal -->
@@ -226,20 +251,17 @@
         let mapLoaded = false;
         const CATCH_RADIUS_METERS = 75;
 
-        // Formats Google Photos/Drive links to bypass inline referrer blocking
         function formatImageURL(url) {
             if (!url) return '';
             let cleaned = url.trim();
             if (cleaned.includes('googleusercontent.com') && !cleaned.includes('w=')) {
-                // Append size parameter to force raw image output
                 cleaned += '=w800';
             }
             return cleaned;
         }
 
         function handleImageError(imgEl) {
-            imgEl.onerror = null; // Prevent infinite loop
-            // High quality dark fallback avatar
+            imgEl.onerror = null;
             imgEl.src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600&auto=format&fit=crop';
         }
 
@@ -263,12 +285,16 @@
                 navigator.geolocation.watchPosition(
                     onLocationUpdate,
                     (err) => {
-                        onLocationUpdate({ coords: { latitude: 33.306, longitude: -111.841 } });
+                        console.warn("Geolocation watch error:", err);
+                        document.getElementById('tele-status').innerText = 'FALLBACK DEFAULT';
+                        document.getElementById('tele-status').style.color = '#e74c3c';
+                        onLocationUpdate({ coords: { latitude: 33.306, longitude: -111.841, accuracy: 999 } });
                     },
-                    { enableHighAccuracy: true, timeout: 8000 }
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
                 );
             } else {
-                onLocationUpdate({ coords: { latitude: 33.306, longitude: -111.841 } });
+                document.getElementById('tele-status').innerText = 'NOT SUPPORTED';
+                onLocationUpdate({ coords: { latitude: 33.306, longitude: -111.841, accuracy: 999 } });
             }
 
             await loadCharactersAndImages();
@@ -306,8 +332,6 @@
                     })
                     .filter(char => char.images && char.images.length > 0);
 
-                console.log(`Database initialized: ${characterDatabase.length} characters matched.`);
-
                 if (playerCoords && mapLoaded) {
                     spawnCharactersAroundPlayer(playerCoords.lat, playerCoords.lng);
                 }
@@ -319,8 +343,16 @@
         function onLocationUpdate(position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
+            const accuracy = Math.round(position.coords.accuracy || 0);
             const newCoords = [lng, lat];
             playerCoords = { lat, lng };
+
+            // Update GPS Telemetry Overlay
+            document.getElementById('tele-lat').innerText = lat.toFixed(6);
+            document.getElementById('tele-lng').innerText = lng.toFixed(6);
+            document.getElementById('tele-acc').innerText = accuracy;
+            document.getElementById('tele-status').innerText = accuracy < 30 ? 'HIGH PRECISION' : 'ACQUIRED';
+            document.getElementById('tele-status').style.color = accuracy < 30 ? '#00FF88' : '#f1c40f';
 
             if (!playerMarker) {
                 const el = document.createElement('div');
@@ -336,6 +368,11 @@
             } else {
                 playerMarker.setLngLat(newCoords);
             }
+
+            // Refresh card distance if open
+            if (activeSpawnObject) {
+                updateCardDistance(activeSpawnObject);
+            }
         }
 
         function spawnCharactersAroundPlayer(playerLat, playerLng) {
@@ -347,6 +384,7 @@
                 
                 const charImage = char.images[Math.floor(Math.random() * char.images.length)];
 
+                // Offset spawn between ~50 meters and 300 meters from player
                 const offsetLat = (Math.random() - 0.5) * 0.005;
                 const offsetLng = (Math.random() - 0.5) * 0.006;
                 const spawnCoords = [playerLng + offsetLng, playerLat + offsetLat];
@@ -355,8 +393,6 @@
                 
                 const el = document.createElement('div');
                 el.className = 'collect-marker';
-                
-                // HTML img element with fallback handling instead of CSS background
                 el.innerHTML = `<div class="collect-circle ${borderClass}"><img class="collect-img" src="${charImage}" onerror="handleImageError(this)" /></div>`;
 
                 const spawnObj = { char, charImage, spawnCoords, marker: null };
@@ -390,11 +426,7 @@
             activeSpawnObject = spawnObj;
             const char = spawnObj.char;
 
-            // Artwork Header
-            const imgEl = document.getElementById('card-img-element');
-            imgEl.src = spawnObj.charImage;
-            
-            // Core Identity
+            document.getElementById('card-img-element').src = spawnObj.charImage;
             document.getElementById('card-name').innerText = char.codename || 'Unknown Entity';
             document.getElementById('card-identity').innerText = char.real_name || 'Secret Identity';
             document.getElementById('card-universe').innerText = char.universe || 'Unknown Universe';
@@ -403,13 +435,11 @@
             alignBadge.innerText = char.alignment || 'Unknown';
             alignBadge.style.color = char.alignment === "Hero" ? "var(--marker-blue)" : "var(--accent-red)";
 
-            // Metadata Pills
             document.getElementById('card-threat').innerText = char.threat_level || 'Standard';
             document.getElementById('card-team').innerText = char.team_affiliation || 'Independent';
             document.getElementById('card-species').innerText = char.species || 'Unknown';
             document.getElementById('card-origin').innerText = char.origin || 'Unknown';
 
-            // Full Attribute Bars
             const setStat = (id, val) => {
                 const num = parseInt(val) || 50;
                 document.getElementById(`val-${id}`).innerText = num;
@@ -423,10 +453,15 @@
             setStat('intelligence', char.intelligence);
             setStat('combat', char.combat_skill);
 
-            // Notes
             document.getElementById('card-notes').innerText = char.notes || 'No security protocol notes logged.';
 
-            // Proximity & Catch Radius Check
+            updateCardDistance(spawnObj);
+
+            document.getElementById('popup-card').style.display = 'block';
+            document.getElementById('popup-backdrop').style.display = 'block';
+        }
+
+        function updateCardDistance(spawnObj) {
             let distMeters = 999;
             if (playerCoords) {
                 distMeters = Math.round(calculateDistance(playerCoords.lat, playerCoords.lng, spawnObj.spawnCoords[1], spawnObj.spawnCoords[0]));
@@ -441,14 +476,12 @@
 
             btn.disabled = !inRange;
             btn.innerText = inRange ? 'COLLECT ENTITY' : 'MOVE CLOSER TO COLLECT';
-
-            document.getElementById('popup-card').style.display = 'block';
-            document.getElementById('popup-backdrop').style.display = 'block';
         }
 
         function closePopup() {
             document.getElementById('popup-card').style.display = 'none';
             document.getElementById('popup-backdrop').style.display = 'none';
+            activeSpawnObject = null;
         }
 
         function claimActiveCharacter() {
