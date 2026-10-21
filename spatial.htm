@@ -61,17 +61,23 @@
         }
 
         /* --- Map Markers --- */
-        .player-marker { display: flex; align-items: center; justify-content: center; width: 180px; height: 180px; position: relative; pointer-events: none; }
-        .player-circle-inner { width: 16px; height: 16px; background-color: var(--marker-blue); border-radius: 50%; box-shadow: 0 0 14px rgba(0, 136, 255, 1); z-index: 2; border: 2px solid #fff; }
-        .player-circle-outer { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 2px solid rgba(0, 255, 136, 0.7); background: radial-gradient(circle, rgba(0, 255, 136, 0.25) 0%, rgba(0, 255, 136, 0.05) 60%, rgba(0, 255, 136, 0) 70%); }
+        .player-marker { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; position: relative; pointer-events: none; }
+        .player-dot { width: 16px; height: 16px; background-color: var(--marker-blue); border-radius: 50%; box-shadow: 0 0 14px rgba(0, 136, 255, 1); z-index: 2; border: 2px solid #fff; }
 
         .collect-marker { cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; width: 44px; height: 44px; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .collect-marker:hover { transform: scale(1.2); }
         .collect-circle { width: 100%; height: 100%; border-radius: 50%; opacity: 0.95; box-shadow: 0 4px 14px rgba(0,0,0,0.8); overflow: hidden; border: 2px solid white; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #222; }
         .collect-img { width: 100%; height: 100%; object-fit: cover; }
 
-        .hero-border { border-color: var(--marker-blue) !important; box-shadow: 0 0 12px rgba(0, 136, 255, 0.6) !important; }
-        .villain-border { border-color: var(--accent-red) !important; box-shadow: 0 0 12px rgba(231, 76, 60, 0.6) !important; }
+        .hero-border { border-color: var(--marker-blue) !important; }
+        .villain-border { border-color: var(--accent-red) !important; }
+        .in-range-glow { animation: pulseGlow 1.5s infinite; border-color: var(--accent-green) !important; box-shadow: 0 0 16px var(--accent-green) !important; }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1); box-shadow: 0 0 8px var(--accent-green); }
+            50% { transform: scale(1.12); box-shadow: 0 0 20px var(--accent-green); }
+            100% { transform: scale(1); box-shadow: 0 0 8px var(--accent-green); }
+        }
 
         /* --- Full Card Modal Layout --- */
         .popup-backdrop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 2500; backdrop-filter: blur(6px); }
@@ -247,9 +253,12 @@
         let playerCoords = null;
         let characterDatabase = [];
         let collectedHeroes = [];
+        let activeSpawns = [];
         let activeSpawnObject = null;
         let mapLoaded = false;
-        const CATCH_RADIUS_METERS = 75;
+        
+        // Updated Catch Radius to 150 meters
+        const CATCH_RADIUS_METERS = 150;
 
         function formatImageURL(url) {
             if (!url) return '';
@@ -265,12 +274,35 @@
             imgEl.src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600&auto=format&fit=crop';
         }
 
+        // Helper to generate GeoJSON polygon for 150m circle around player
+        function createGeoJSONCircle(center, radiusInMeters, points = 64) {
+            let coords = { latitude: center[1], longitude: center[0] };
+            let km = radiusInMeters / 1000;
+            let ret = [];
+            let distanceX = km / (111.320 * Math.cos(coords.latitude * Math.PI / 180));
+            let distanceY = km / 110.574;
+            for (let i = 0; i < points; i++) {
+                let theta = (i / points) * (2 * Math.PI);
+                let x = distanceX * Math.cos(theta);
+                let y = distanceY * Math.sin(theta);
+                ret.push([coords.longitude + x, coords.latitude + y]);
+            }
+            ret.push(ret[0]);
+            return {
+                type: "Feature",
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [ret]
+                }
+            };
+        }
+
         async function initGame() {
             map = new maplibregl.Map({
                 container: 'map',
                 style: 'https://tiles.openfreemap.org/styles/dark',
                 center: [-111.841, 33.306],
-                zoom: 16.5,
+                zoom: 16,
                 pitch: 45,
                 bearing: -10,
                 attributionControl: false
@@ -278,6 +310,34 @@
 
             map.on('load', function () {
                 mapLoaded = true;
+
+                // Add source & layers for the 150m Catch Radius Circle
+                map.addSource('catch-radius-source', {
+                    type: 'geojson',
+                    data: createGeoJSONCircle([-111.841, 33.306], CATCH_RADIUS_METERS)
+                });
+
+                map.addLayer({
+                    id: 'catch-radius-fill',
+                    type: 'fill',
+                    source: 'catch-radius-source',
+                    paint: {
+                        'fill-color': '#2ecc71',
+                        'fill-opacity': 0.12
+                    }
+                });
+
+                map.addLayer({
+                    id: 'catch-radius-stroke',
+                    type: 'line',
+                    source: 'catch-radius-source',
+                    paint: {
+                        'line-color': '#2ecc71',
+                        'line-width': 2,
+                        'line-dasharray': [2, 2]
+                    }
+                });
+
                 if (playerCoords) spawnCharactersAroundPlayer(playerCoords.lat, playerCoords.lng);
             });
 
@@ -357,17 +417,25 @@
             if (!playerMarker) {
                 const el = document.createElement('div');
                 el.className = 'player-marker';
-                el.innerHTML = '<div class="player-circle-outer"></div><div class="player-circle-inner"></div>';
+                el.innerHTML = '<div class="player-dot"></div>';
 
                 playerMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
                     .setLngLat(newCoords)
                     .addTo(map);
 
-                map.flyTo({ center: newCoords, zoom: 16.5, essential: true });
+                map.flyTo({ center: newCoords, zoom: 16, essential: true });
                 if (mapLoaded) spawnCharactersAroundPlayer(lat, lng);
             } else {
                 playerMarker.setLngLat(newCoords);
             }
+
+            // Update 150m Catch Radius Circle geometry on map
+            if (mapLoaded && map.getSource('catch-radius-source')) {
+                map.getSource('catch-radius-source').setData(createGeoJSONCircle([lng, lat], CATCH_RADIUS_METERS));
+            }
+
+            // Update proximity states for all active spawns
+            updateSpawnProximities();
 
             // Refresh card distance if open
             if (activeSpawnObject) {
@@ -378,13 +446,12 @@
         function spawnCharactersAroundPlayer(playerLat, playerLng) {
             if (!characterDatabase || characterDatabase.length === 0) return;
 
-            const spawnCount = Math.floor(Math.random() * 3) + 5;
+            const spawnCount = Math.floor(Math.random() * 3) + 6;
             for (let i = 0; i < spawnCount; i++) {
                 const char = characterDatabase[Math.floor(Math.random() * characterDatabase.length)];
-                
                 const charImage = char.images[Math.floor(Math.random() * char.images.length)];
 
-                // Offset spawn between ~50 meters and 300 meters from player
+                // Offset spawn around player within vicinity
                 const offsetLat = (Math.random() - 0.5) * 0.005;
                 const offsetLng = (Math.random() - 0.5) * 0.006;
                 const spawnCoords = [playerLng + offsetLng, playerLat + offsetLat];
@@ -393,9 +460,9 @@
                 
                 const el = document.createElement('div');
                 el.className = 'collect-marker';
-                el.innerHTML = `<div class="collect-circle ${borderClass}"><img class="collect-img" src="${charImage}" onerror="handleImageError(this)" /></div>`;
+                el.innerHTML = `<div class="collect-circle ${borderClass}" id="marker-circle-${activeSpawns.length}"><img class="collect-img" src="${charImage}" onerror="handleImageError(this)" /></div>`;
 
-                const spawnObj = { char, charImage, spawnCoords, marker: null };
+                const spawnObj = { id: activeSpawns.length, char, charImage, spawnCoords, marker: null, elementId: `marker-circle-${activeSpawns.length}` };
 
                 el.onclick = () => openCharacterCard(spawnObj);
 
@@ -404,7 +471,9 @@
                     .addTo(map);
 
                 spawnObj.marker = marker;
+                activeSpawns.push(spawnObj);
             }
+            updateSpawnProximities();
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -420,6 +489,21 @@
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
             return R * c;
+        }
+
+        function updateSpawnProximities() {
+            if (!playerCoords) return;
+            activeSpawns.forEach(spawn => {
+                const dist = calculateDistance(playerCoords.lat, playerCoords.lng, spawn.spawnCoords[1], spawn.spawnCoords[0]);
+                const el = document.getElementById(spawn.elementId);
+                if (el) {
+                    if (dist <= CATCH_RADIUS_METERS) {
+                        el.classList.add('in-range-glow');
+                    } else {
+                        el.classList.remove('in-range-glow');
+                    }
+                }
+            });
         }
 
         function openCharacterCard(spawnObj) {
@@ -489,6 +573,8 @@
 
             collectedHeroes.push(activeSpawnObject.char);
             if (activeSpawnObject.marker) activeSpawnObject.marker.remove();
+
+            activeSpawns = activeSpawns.filter(s => s.id !== activeSpawnObject.id);
 
             alert(`Secured ${activeSpawnObject.char.codename || 'Entity'} into your Pantheon Roster!`);
             closePopup();
