@@ -66,16 +66,20 @@
 
         .collect-marker { cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; width: 44px; height: 44px; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .collect-marker:hover { transform: scale(1.2); }
-        .collect-circle { width: 100%; height: 100%; border-radius: 50%; opacity: 0.95; box-shadow: 0 4px 14px rgba(0,0,0,0.8); overflow: hidden; border: 2px solid white; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #222; }
+        .collect-circle { width: 100%; height: 100%; border-radius: 50%; opacity: 0.95; box-shadow: 0 4px 14px rgba(0,0,0,0.8); overflow: hidden; border: 2.5px solid white; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #222; }
         .collect-img { width: 100%; height: 100%; object-fit: cover; }
 
-        .hero-border { border-color: var(--marker-blue) !important; }
-        .villain-border { border-color: var(--accent-red) !important; }
-        .in-range-glow { animation: pulseGlow 1.5s infinite; border-color: var(--accent-green) !important; box-shadow: 0 0 16px var(--accent-green) !important; }
+        /* Alignment Colors */
+        .hero-border { border-color: var(--marker-blue) !important; box-shadow: 0 0 12px rgba(0, 136, 255, 0.7) !important; }
+        .villain-border { border-color: var(--accent-red) !important; box-shadow: 0 0 12px rgba(231, 76, 60, 0.7) !important; }
+        .antihero-border { border-color: var(--marker-purple) !important; box-shadow: 0 0 12px rgba(155, 89, 182, 0.7) !important; }
+
+        /* In-Range Dynamic Pulse Glow */
+        .in-range-glow { animation: pulseGlow 1.5s infinite; border-color: var(--accent-green) !important; box-shadow: 0 0 18px var(--accent-green) !important; }
 
         @keyframes pulseGlow {
             0% { transform: scale(1); box-shadow: 0 0 8px var(--accent-green); }
-            50% { transform: scale(1.12); box-shadow: 0 0 20px var(--accent-green); }
+            50% { transform: scale(1.12); box-shadow: 0 0 22px var(--accent-green); }
             100% { transform: scale(1); box-shadow: 0 0 8px var(--accent-green); }
         }
 
@@ -257,7 +261,6 @@
         let activeSpawnObject = null;
         let mapLoaded = false;
         
-        // Updated Catch Radius to 150 meters
         const CATCH_RADIUS_METERS = 150;
 
         function formatImageURL(url) {
@@ -274,7 +277,22 @@
             imgEl.src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=600&auto=format&fit=crop';
         }
 
-        // Helper to generate GeoJSON polygon for 150m circle around player
+        function getAlignmentBorderClass(alignment) {
+            if (!alignment) return 'hero-border';
+            const alignLower = alignment.trim().toLowerCase();
+            if (alignLower.includes('anti')) return 'antihero-border';
+            if (alignLower.includes('villain')) return 'villain-border';
+            return 'hero-border'; // Default to Hero (Blue)
+        }
+
+        function getAlignmentColor(alignment) {
+            if (!alignment) return 'var(--marker-blue)';
+            const alignLower = alignment.trim().toLowerCase();
+            if (alignLower.includes('anti')) return 'var(--marker-purple)';
+            if (alignLower.includes('villain')) return 'var(--accent-red)';
+            return 'var(--marker-blue)';
+        }
+
         function createGeoJSONCircle(center, radiusInMeters, points = 64) {
             let coords = { latitude: center[1], longitude: center[0] };
             let km = radiusInMeters / 1000;
@@ -311,7 +329,6 @@
             map.on('load', function () {
                 mapLoaded = true;
 
-                // Add source & layers for the 150m Catch Radius Circle
                 map.addSource('catch-radius-source', {
                     type: 'geojson',
                     data: createGeoJSONCircle([-111.841, 33.306], CATCH_RADIUS_METERS)
@@ -407,7 +424,6 @@
             const newCoords = [lng, lat];
             playerCoords = { lat, lng };
 
-            // Update GPS Telemetry Overlay
             document.getElementById('tele-lat').innerText = lat.toFixed(6);
             document.getElementById('tele-lng').innerText = lng.toFixed(6);
             document.getElementById('tele-acc').innerText = accuracy;
@@ -429,15 +445,12 @@
                 playerMarker.setLngLat(newCoords);
             }
 
-            // Update 150m Catch Radius Circle geometry on map
             if (mapLoaded && map.getSource('catch-radius-source')) {
                 map.getSource('catch-radius-source').setData(createGeoJSONCircle([lng, lat], CATCH_RADIUS_METERS));
             }
 
-            // Update proximity states for all active spawns
             updateSpawnProximities();
 
-            // Refresh card distance if open
             if (activeSpawnObject) {
                 updateCardDistance(activeSpawnObject);
             }
@@ -451,12 +464,12 @@
                 const char = characterDatabase[Math.floor(Math.random() * characterDatabase.length)];
                 const charImage = char.images[Math.floor(Math.random() * char.images.length)];
 
-                // Offset spawn around player within vicinity
                 const offsetLat = (Math.random() - 0.5) * 0.005;
                 const offsetLng = (Math.random() - 0.5) * 0.006;
                 const spawnCoords = [playerLng + offsetLng, playerLat + offsetLat];
 
-                const borderClass = char.alignment === "Hero" ? "hero-border" : "villain-border";
+                // Determine border class based on Alignment (Hero = Blue, Villain = Red, Anti-Hero = Purple)
+                const borderClass = getAlignmentBorderClass(char.alignment);
                 
                 const el = document.createElement('div');
                 el.className = 'collect-marker';
@@ -517,7 +530,7 @@
             
             const alignBadge = document.getElementById('card-alignment');
             alignBadge.innerText = char.alignment || 'Unknown';
-            alignBadge.style.color = char.alignment === "Hero" ? "var(--marker-blue)" : "var(--accent-red)";
+            alignBadge.style.color = getAlignmentColor(char.alignment);
 
             document.getElementById('card-threat').innerText = char.threat_level || 'Standard';
             document.getElementById('card-team').innerText = char.team_affiliation || 'Independent';
