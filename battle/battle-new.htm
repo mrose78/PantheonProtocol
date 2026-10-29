@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PANTHEON PROTOCOL: BATTLE ENGINE</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Google Fonts: Action & Comic Style -->
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bebas+Neue&family=Comic+Neue:ital,wght@0,400;0,700;1,700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Comic Neue', cursive, sans-serif;
+      background-color: #fef08a;
+      background-image: radial-gradient(#ef4444 1.8px, transparent 1.8px), radial-gradient(#ef4444 1.8px, #fef08a 1.8px);
+      background-size: 28px 28px;
+      background-position: 0 0, 14px 14px;
+    }
+
+    .font-comic {
+      font-family: 'Bangers', cursive;
+      letter-spacing: 0.06em;
+    }
+
+    .font-header {
+      font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 0.08em;
+    }
+
+    .comic-box {
+      border: 4px solid #000000;
+      box-shadow: 6px 6px 0px #000000;
+    }
+
+    .comic-box-sm {
+      border: 3px solid #000000;
+      box-shadow: 4px 4px 0px #000000;
+    }
+
+    .comic-btn {
+      border: 3px solid #000000;
+      box-shadow: 4px 4px 0px #000000;
+      transition: all 0.12s ease-in-out;
+      font-family: 'Bangers', cursive;
+      letter-spacing: 0.05em;
+    }
+
+    .comic-btn:hover:not(:disabled) {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0px #000000;
+    }
+
+    .comic-btn:active:not(:disabled) {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0px #000000;
+    }
+
+    /* Floating Pop-art FX Text */
+    @keyframes sfx-pop {
+      0% { opacity: 0; transform: scale(0.3) rotate(-15deg); }
+      50% { opacity: 1; transform: scale(1.3) rotate(5deg); }
+      100% { opacity: 0; transform: scale(1) translateY(-30px) rotate(12deg); }
+    }
+
+    .sfx-popup {
+      animation: sfx-pop 0.9s ease-out forwards;
+      pointer-events: none;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #fef08a;
+      border-left: 3px solid #000;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #ef4444;
+      border: 2px solid #000;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-16 text-black select-none">
+
+  <!-- TOP HEADER BANNER -->
+  <header class="bg-yellow-400 border-b-8 border-black p-4 mb-6 shadow-2xl relative overflow-hidden">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="text-center md:text-left">
+        <h1 class="text-5xl md:text-6xl font-comic text-red-600 drop-shadow-[4px_4px_0px_#000] tracking-wider uppercase">
+          PANTHEON PROTOCOL
+        </h1>
+        <p class="font-header text-xl md:text-2xl text-black tracking-widest uppercase bg-white px-3 py-0.5 inline-block border-2 border-black shadow-[3px_3px_0px_#000]">
+          ⚡ BATTLE SIMULATOR 2.0 ⚡
+        </p>
+      </div>
+
+      <!-- MODE TOGGLES -->
+      <div class="flex items-center gap-3">
+        <button id="mode-1v1" onclick="setBattleMode('1v1')" class="comic-btn px-5 py-2 text-2xl bg-cyan-400 hover:bg-cyan-300">
+          1 vs 1 DUEL
+        </button>
+        <button id="mode-team" onclick="setBattleMode('team')" class="comic-btn px-5 py-2 text-2xl bg-gray-200 hover:bg-yellow-300">
+          TEAM vs TEAM
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4">
+    
+    <!-- LOADING SPINNER -->
+    <div id="loading-state" class="comic-box bg-white p-8 text-center my-12 max-w-md mx-auto">
+      <div class="inline-block animate-spin text-5xl mb-3">💥</div>
+      <h2 class="font-comic text-4xl text-red-600">SYNCING HERO ARCHIVES...</h2>
+      <p class="font-bold text-gray-700 mt-2">Parsing Character & Image Datasets...</p>
+    </div>
+
+    <!-- MAIN BATTLE UI -->
+    <div id="battle-ui" class="hidden space-y-8">
+
+      <!-- ROSTER BUILDING / SELECTION SECTION -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- SIDE A / TEAM BLUE -->
+        <div class="comic-box bg-cyan-100 p-4 md:p-5 relative flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <div class="bg-cyan-500 text-white font-comic text-2xl px-3 py-1 border-2 border-black shadow-[3px_3px_0px_#000]">
+                SIDE A / ALPHA SQUAD (<span id="count-a">0</span>)
+              </div>
+              <button onclick="clearTeam('A')" class="comic-btn bg-white hover:bg-red-200 text-xs text-red-600 px-2 py-1 font-comic">
+                CLEAR ALL
+              </button>
+            </div>
+
+            <!-- TEAM PRESET DROPDOWN -->
+            <div id="team-preset-container-a" class="hidden mb-4 bg-white p-3 border-2 border-black shadow-[3px_3px_0px_#000]">
+              <label class="block font-comic text-lg text-cyan-900 mb-1">⚡ LOAD FULL TEAM AFFILIATION:</label>
+              <select id="team-preset-a" onchange="loadTeamPreset('A', this.value)" class="w-full font-bold p-2 bg-yellow-100 border-2 border-black focus:outline-none text-sm">
+                <option value="">-- Select Team Group (e.g., Avengers) --</option>
+              </select>
+            </div>
+
+            <!-- INDIVIDUAL ADD DROPDOWN -->
+            <div class="flex gap-2 mb-4">
+              <select id="add-select-a" class="comic-box-sm w-full p-2 font-bold bg-white focus:outline-none text-sm">
+                <option value="">-- Add Individual Fighter --</option>
+              </select>
+              <button onclick="addSingleFighter('A')" class="comic-btn px-4 bg-cyan-400 hover:bg-cyan-300 font-comic text-xl">
+                +ADD
+              </button>
+            </div>
+
+            <!-- ACTIVE ROSTER DISPLAY LIST (WITH INDIVIDUAL REMOVE BUTTONS) -->
+            <div id="roster-list-a" class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+              <!-- Roster cards injected here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- SIDE B / TEAM RED -->
+        <div class="comic-box bg-red-100 p-4 md:p-5 relative flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <div class="bg-red-500 text-white font-comic text-2xl px-3 py-1 border-2 border-black shadow-[3px_3px_0px_#000]">
+                SIDE B / OMEGA SQUAD (<span id="count-b">0</span>)
+              </div>
+              <button onclick="clearTeam('B')" class="comic-btn bg-white hover:bg-red-200 text-xs text-red-600 px-2 py-1 font-comic">
+                CLEAR ALL
+              </button>
+            </div>
+
+            <!-- TEAM PRESET DROPDOWN -->
+            <div id="team-preset-container-b" class="hidden mb-4 bg-white p-3 border-2 border-black shadow-[3px_3px_0px_#000]">
+              <label class="block font-comic text-lg text-red-900 mb-1">⚡ LOAD FULL TEAM AFFILIATION:</label>
+              <select id="team-preset-b" onchange="loadTeamPreset('B', this.value)" class="w-full font-bold p-2 bg-yellow-100 border-2 border-black focus:outline-none text-sm">
+                <option value="">-- Select Team Group (e.g., X-Men) --</option>
+              </select>
+            </div>
+
+            <!-- INDIVIDUAL ADD DROPDOWN -->
+            <div class="flex gap-2 mb-4">
+              <select id="add-select-b" class="comic-box-sm w-full p-2 font-bold bg-white focus:outline-none text-sm">
+                <option value="">-- Add Individual Fighter --</option>
+              </select>
+              <button onclick="addSingleFighter('B')" class="comic-btn px-4 bg-red-400 hover:bg-red-300 font-comic text-xl">
+                +ADD
+              </button>
+            </div>
+
+            <!-- ACTIVE ROSTER DISPLAY LIST (WITH INDIVIDUAL REMOVE BUTTONS) -->
+            <div id="roster-list-b" class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+              <!-- Roster cards injected here -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ENGAGE COMBAT BUTTON -->
+      <div class="text-center py-2">
+        <button id="engage-btn" onclick="startBattle()" class="comic-btn bg-yellow-400 hover:bg-yellow-300 text-black text-3xl md:text-5xl px-8 py-3 uppercase tracking-wider animate-bounce">
+          ⚔️ ENGAGE COMBAT! ⚔️
+        </button>
+      </div>
+
+      <!-- COMBAT DISPLAY ARENA -->
+      <div id="arena" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6 items-start relative">
+        
+        <!-- POP-ART SFX OVERLAY -->
+        <div id="sfx-layer" class="absolute inset-0 z-30 pointer-events-none overflow-hidden"></div>
+
+        <!-- TEAM A ARENA CARDS -->
+        <div id="display-team-a" class="space-y-4"></div>
+
+        <!-- COMBAT LOG / CENTER PANEL -->
+        <div class="comic-box bg-yellow-200 p-4 lg:col-span-1 order-last lg:order-none sticky top-4">
+          <div class="flex justify-between items-center bg-black text-yellow-400 px-3 py-1 mb-3 border-2 border-black">
+            <h2 class="font-comic text-2xl md:text-3xl">BATTLE LOG</h2>
+            <span id="combat-turn-badge" class="font-bold text-xs bg-red-600 text-white px-2 py-0.5 rounded">READY</span>
+          </div>
+          <div id="battle-log" class="h-96 overflow-y-auto p-3 bg-white border-2 border-black font-mono text-xs md:text-sm space-y-2">
+            <p class="text-gray-500 text-center italic">Waiting for combat initialization...</p>
+          </div>
+        </div>
+
+        <!-- TEAM B ARENA CARDS -->
+        <div id="display-team-b" class="space-y-4"></div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- VICTORY MODAL -->
+  <div id="victory-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+    <div class="comic-box bg-yellow-300 max-w-lg w-full p-6 text-center relative animate-bounce-once">
+      <div class="bg-red-600 text-white font-comic text-4xl py-2 mb-4 border-2 border-black shadow-[4px_4px_0px_#000]">
+        VICTORY ATTAINED!
+      </div>
+      <h3 id="victory-team-name" class="font-comic text-3xl text-black mb-2">
+        SIDE A WINS THE MATCH!
+      </h3>
+      
+      <!-- MVP HIGHLIGHT CARD -->
+      <div id="mvp-card" class="comic-box bg-white p-4 my-4 text-left flex gap-4 items-center">
+        <!-- MVP Data dynamically loaded here -->
+      </div>
+
+      <button onclick="closeVictoryModal()" class="comic-btn bg-cyan-400 hover:bg-cyan-300 text-2xl px-6 py-2">
+        CLOSE & REVIEW LOG
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const CHARACTERS_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGfw_4b0iqj-AkMzNQIJdTnr9q6E1O5ugB_XsPPxyt-OHrtHTXENmKgxqVIw9rHcpFGjCymtCbzMKM/pub?gid=0&single=true&output=csv';
+    const IMAGES_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTGfw_4b0iqj-AkMzNQIJdTnr9q6E1O5ugB_XsPPxyt-OHrtHTXENmKgxqVIw9rHcpFGjCymtCbzMKM/pub?gid=1288957876&single=true&output=csv';
+    const DEFAULT_IMAGE_URL = 'https://lh3.googleusercontent.com/pw/AP1GczNkKm8SA_pgICC4HzoxybrbdNzCWYHeSN1ZwwdyC1GeMpW-gdvwnOyksxEb5OCymkOBXjxTU9VbFOeEBhfsQq25xaMsYN9stWqP0mMLLihZVKUyXMVh3SK0lHxz_Fit7rTpdowFE9ZZu-k94Y2cG3OHLg=w728-h1031-s-no-gm?authuser=0';
+
+    let characterMap = new Map();
+    let teamAffiliations = new Set();
+    let selectedTeamA = []; // Array of character IDs
+    let selectedTeamB = []; // Array of character IDs
+    let battleMode = '1v1'; // '1v1' or 'team'
+
+    const SOUND_EFFECTS = ['BAM!', 'POW!', 'KABOOM!', 'CRUNCH!', 'ZAP!', 'WHAM!', 'SLAP!', 'BANG!', 'KA-POW!'];
+    let battleInterval = null;
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadData();
+    });
+
+    async function loadData() {
+      try {
+        const [charsRes, imagesRes] = await Promise.all([
+          fetchCSV(CHARACTERS_CSV),
+          fetchCSV(IMAGES_CSV)
+        ]);
+
+        // Process Images Map
+        const imageMap = new Map();
+        imagesRes.data.forEach(img => {
+          if (!img.character_id) return;
+          const cid = parseInt(img.character_id);
+          if (!imageMap.has(cid)) imageMap.set(cid, []);
+          if (img.url && img.url.startsWith('http')) {
+            imageMap.get(cid).push(img.url);
+          }
+        });
+
+        // Process Characters
+        charsRes.data.forEach(c => {
+          if (!c.id || !c.codename) return;
+          const id = parseInt(c.id);
+          const imgs = imageMap.get(id) || [];
+          
+          if (c.team_affiliation && c.team_affiliation.trim() !== '' && c.team_affiliation !== '#N/A') {
+            teamAffiliations.add(c.team_affiliation.trim());
+          }
+
+          // Pick single image: use the first image from CSV or fallback URL if none exist
+          const selectedImage = imgs.length > 0 ? imgs[0] : DEFAULT_IMAGE_URL;
+
+          characterMap.set(id, {
+            id: id,
+            codename: c.codename,
+            realName: c.real_name || '',
+            alignment: c.alignment || 'Neutral',
+            universe: c.universe || 'Unknown',
+            teamAffiliation: c.team_affiliation || 'Independent',
+            stats: {
+              power: parseInt(c.power) || 50,
+              strength: parseInt(c.strength) || 50,
+              speed: parseInt(c.speed) || 50,
+              durability: parseInt(c.durability) || 50,
+              intelligence: parseInt(c.intelligence) || 50,
+              combatSkill: parseInt(c.combat_skill) || 50,
+              willpower: parseInt(c.willpower) || 50,
+              luck: parseInt(c.luck) || 50
+            },
+            images: [selectedImage],
+            image: selectedImage,
+            notes: c.notes || ''
+          });
+        });
+
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('battle-ui').classList.remove('hidden');
+
+        populateDropdowns();
+        setBattleMode('1v1');
+      } catch (err) {
+        console.error('Data Loading Error:', err);
+        document.getElementById('loading-state').innerHTML = `
+          <h2 class="font-comic text-3xl text-red-600">FAILED TO LOAD DATA</h2>
+          <p class="text-sm font-bold mt-2">${err.message}</p>
+        `;
+      }
+    }
+
+    function fetchCSV(url) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(url, {
+          download: true,
+          header: true,
+          skipEmptyLines: true,
+          complete: results => resolve(results),
+          error: err => reject(err)
+        });
+      });
+    }
+
+    function populateDropdowns() {
+      const sortedChars = Array.from(characterMap.values()).sort((a, b) => a.codename.localeCompare(b.codename));
+      const sortedTeams = Array.from(teamAffiliations).sort();
+
+      // Individual selects
+      ['add-select-a', 'add-select-b'].forEach(selectId => {
+        const select = document.getElementById(selectId);
+        select.innerHTML = '<option value="">-- Select Individual Fighter --</option>';
+        sortedChars.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = `${c.codename} (${c.universe}${c.teamAffiliation ? ' - ' + c.teamAffiliation : ''})`;
+          select.appendChild(opt);
+        });
+      });
+
+      // Team Group selects
+      ['team-preset-a', 'team-preset-b'].forEach(presetId => {
+        const select = document.getElementById(presetId);
+        select.innerHTML = '<option value="">-- Load Team Affiliation (e.g. Avengers) --</option>';
+        sortedTeams.forEach(teamName => {
+          const opt = document.createElement('option');
+          opt.value = teamName;
+          opt.textContent = `Group: ${teamName}`;
+          select.appendChild(opt);
+        });
+      });
+    }
+
+    function setBattleMode(mode) {
+      battleMode = mode;
+      const btn1v1 = document.getElementById('mode-1v1');
+      const btnTeam = document.getElementById('mode-team');
+      const presetContainerA = document.getElementById('team-preset-container-a');
+      const presetContainerB = document.getElementById('team-preset-container-b');
+
+      if (mode === '1v1') {
+        btn1v1.className = 'comic-btn px-5 py-2 text-2xl bg-cyan-400 hover:bg-cyan-300';
+        btnTeam.className = 'comic-btn px-5 py-2 text-2xl bg-gray-200 hover:bg-yellow-300';
+        presetContainerA.classList.add('hidden');
+        presetContainerB.classList.add('hidden');
+        
+        // Cap rosters to 1 in 1v1 mode
+        if (selectedTeamA.length > 1) selectedTeamA = [selectedTeamA[0]];
+        if (selectedTeamB.length > 1) selectedTeamB = [selectedTeamB[0]];
+      } else {
+        btnTeam.className = 'comic-btn px-5 py-2 text-2xl bg-yellow-400 hover:bg-yellow-300';
+        btn1v1.className = 'comic-btn px-5 py-2 text-2xl bg-gray-200 hover:bg-cyan-300';
+        presetContainerA.classList.remove('hidden');
+        presetContainerB.classList.remove('hidden');
+      }
+
+      renderRoster('A');
+      renderRoster('B');
+    }
+
+    // LOAD ALL MEMBERS OF A TEAM AFFILIATION
+    function loadTeamPreset(side, teamName) {
+      if (!teamName) return;
+
+      const matchingIds = Array.from(characterMap.values())
+        .filter(c => c.teamAffiliation.toLowerCase() === teamName.toLowerCase())
+        .map(c => c.id);
+
+      if (side === 'A') {
+        selectedTeamA = [...new Set([...selectedTeamA, ...matchingIds])];
+        renderRoster('A');
+      } else {
+        selectedTeamB = [...new Set([...selectedTeamB, ...matchingIds])];
+        renderRoster('B');
+      }
+      
+      // Reset select
+      document.getElementById(`team-preset-${side.toLowerCase()}`).value = '';
+    }
+
+    function addSingleFighter(side) {
+      const select = document.getElementById(`add-select-${side.toLowerCase()}`);
+      const val = parseInt(select.value);
+      if (!val) return;
+
+      if (battleMode === '1v1') {
+        if (side === 'A') selectedTeamA = [val];
+        else selectedTeamB = [val];
+      } else {
+        if (side === 'A') {
+          if (!selectedTeamA.includes(val)) selectedTeamA.push(val);
+        } else {
+          if (!selectedTeamB.includes(val)) selectedTeamB.push(val);
+        }
+      }
+
+      select.value = '';
+      renderRoster(side);
+    }
+
+    function removeFighter(side, charId) {
+      if (side === 'A') {
+        selectedTeamA = selectedTeamA.filter(id => id !== charId);
+        renderRoster('A');
+      } else {
+        selectedTeamB = selectedTeamB.filter(id => id !== charId);
+        renderRoster('B');
+      }
+    }
+
+    function clearTeam(side) {
+      if (side === 'A') {
+        selectedTeamA = [];
+        renderRoster('A');
+      } else {
+        selectedTeamB = [];
+        renderRoster('B');
+      }
+    }
+
+    function renderRoster(side) {
+      const rosterList = document.getElementById(`roster-list-${side.toLowerCase()}`);
+      const countSpan = document.getElementById(`count-${side.toLowerCase()}`);
+      const ids = side === 'A' ? selectedTeamA : selectedTeamB;
+
+      countSpan.textContent = ids.length;
+      rosterList.innerHTML = '';
+
+      if (ids.length === 0) {
+        rosterList.innerHTML = `<div class="text-center text-gray-500 italic p-4 bg-white border-2 border-dashed border-black">No fighters selected</div>`;
+        return;
+      }
+
+      ids.forEach(id => {
+        const char = characterMap.get(id);
+        if (!char) return;
+
+        const card = document.createElement('div');
+        card.className = 'comic-box-sm bg-white p-2 flex items-center justify-between gap-2';
+        card.innerHTML = `
+          <div class="flex items-center gap-3 overflow-hidden">
+            <img src="${char.images[0]}" class="w-10 h-10 object-cover border border-black flex-shrink-0" alt="${char.codename}">
+            <div class="truncate">
+              <div class="font-comic text-lg leading-none truncate">${char.codename}</div>
+              <div class="text-xs text-gray-600 truncate font-bold">
+                ${char.teamAffiliation ? char.teamAffiliation : char.universe}
+              </div>
+            </div>
+          </div>
+          <button onclick="removeFighter('${side}', ${char.id})" class="comic-btn bg-red-500 hover:bg-red-600 text-white font-comic text-lg px-2 py-0.5 flex-shrink-0">
+            ✕
+          </button>
+        `;
+        rosterList.appendChild(card);
+      });
+    }
+
+    // COMBAT SIMULATION ENGINE
+    function startBattle() {
+      if (selectedTeamA.length === 0 || selectedTeamB.length === 0) {
+        alert('Please assign at least one fighter to both Side A and Side B!');
+        return;
+      }
+
+      if (battleInterval) clearInterval(battleInterval);
+
+      const teamA = selectedTeamA.map(id => createCombatant(characterMap.get(id)));
+      const teamB = selectedTeamB.map(id => createCombatant(characterMap.get(id)));
+
+      document.getElementById('arena').classList.remove('hidden');
+      
+      renderArenaCards('display-team-a', teamA, 'A');
+      renderArenaCards('display-team-b', teamB, 'B');
+
+      runCombatSimulation(teamA, teamB);
+    }
+
+    function createCombatant(char) {
+      const stats = char.stats;
+      const maxHp = (stats.durability * 9) + (stats.strength * 3) + (stats.willpower * 2);
+      
+      return {
+        ...char,
+        hp: maxHp,
+        maxHp: maxHp,
+        isDefeated: false,
+        damageDealt: 0,
+        kills: 0
+      };
+    }
+
+    function renderArenaCards(containerId, team, side) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      team.forEach((c, idx) => {
+        const charImg = c.image || (c.images && c.images[0]) || DEFAULT_IMAGE_URL;
+        const card = document.createElement('div');
+        card.id = `card-${side}-${idx}`;
+        card.className = `comic-box bg-white p-3 relative transition-all duration-300`;
+        card.innerHTML = `
+          <div class="relative h-48 md:h-56 border-2 border-black overflow-hidden mb-2 bg-gray-100">
+            <img src="${charImg}" class="w-full h-full object-cover object-top" alt="${c.codename}">
+            <div class="absolute bottom-0 inset-x-0 bg-black/85 text-yellow-300 p-1 text-center font-comic text-lg md:text-xl border-t border-black">
+              ${c.codename}
+            </div>
+          </div>
+          
+          <!-- HEALTH BAR -->
+          <div class="space-y-1 mb-2">
+            <div class="flex justify-between font-bold text-xs">
+              <span>HEALTH</span>
+              <span id="hp-text-${side}-${idx}">${c.hp} / ${c.maxHp}</span>
+            </div>
+            <div class="w-full bg-gray-300 border-2 border-black h-4 relative">
+              <div id="hp-bar-${side}-${idx}" class="bg-green-500 h-full transition-all duration-200" style="width: 100%"></div>
+            </div>
+          </div>
+
+          <!-- STATS BADGES -->
+          <div class="grid grid-cols-4 gap-1 text-[10px] text-center font-bold">
+            <div class="bg-yellow-200 p-0.5 border border-black">PWR: ${c.stats.power}</div>
+            <div class="bg-red-200 p-0.5 border border-black">STR: ${c.stats.strength}</div>
+            <div class="bg-blue-200 p-0.5 border border-black">SPD: ${c.stats.speed}</div>
+            <div class="bg-purple-200 p-0.5 border border-black">SKL: ${c.stats.combatSkill}</div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function runCombatSimulation(teamA, teamB) {
+      const log = document.getElementById('battle-log');
+      const badge = document.getElementById('combat-turn-badge');
+      log.innerHTML = '';
+      badge.textContent = 'SIMULATING...';
+
+      function appendLog(text, style = '') {
+        const p = document.createElement('p');
+        p.className = `leading-tight ${style}`;
+        p.innerHTML = text;
+        log.appendChild(p);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      appendLog(`<b>⚡ BATTLE INITIALIZED ⚡</b>`, 'text-blue-600 font-bold border-b-2 border-black pb-1');
+
+      let turn = 1;
+      battleInterval = setInterval(() => {
+        const activeA = teamA.filter(c => !c.isDefeated);
+        const activeB = teamB.filter(c => !c.isDefeated);
+
+        if (activeA.length === 0 || activeB.length === 0) {
+          clearInterval(battleInterval);
+          badge.textContent = 'FINISHED';
+
+          const winningSide = activeA.length > 0 ? 'SIDE A (ALPHA SQUAD)' : 'SIDE B (OMEGA SQUAD)';
+          const winners = activeA.length > 0 ? teamA : teamB;
+          const allFighters = [...teamA, ...teamB];
+          
+          // Find MVP
+          const mvp = allFighters.reduce((max, fighter) => fighter.damageDealt > max.damageDealt ? fighter : max, allFighters[0]);
+
+          appendLog(`<br><b class="text-lg text-red-600 bg-yellow-300 px-2 py-1 border-2 border-black block text-center">🏆 VICTORY FOR ${winningSide}! 🏆</b>`);
+          
+          showVictoryModal(winningSide, mvp);
+          return;
+        }
+
+        // Random Attack pairings
+        const attackerA = activeA[Math.floor(Math.random() * activeA.length)];
+        const defenderB = activeB[Math.floor(Math.random() * activeB.length)];
+
+        executeAttack(attackerA, defenderB, 'A', 'B', teamB.indexOf(defenderB), appendLog);
+
+        if (!defenderB.isDefeated) {
+          const defenderA = activeA[Math.floor(Math.random() * activeA.length)];
+          executeAttack(defenderB, defenderA, 'B', 'A', teamA.indexOf(defenderA), appendLog);
+        }
+
+        turn++;
+      }, 750);
+    }
+
+    function executeAttack(attacker, defender, attackerSide, defenderSide, defenderIdx, logFn) {
+      const s = attacker.stats;
+      const sDef = defender.stats;
+
+      // Combat Calculations
+      const rawDmg = (s.power * 0.45) + (s.strength * 0.35) + (s.combatSkill * 0.25);
+      const defense = (sDef.durability * 0.3) + (sDef.speed * 0.15);
+      
+      const luckFactor = (Math.random() * s.luck) - (Math.random() * sDef.luck);
+      const sfx = SOUND_EFFECTS[Math.floor(Math.random() * SOUND_EFFECTS.length)];
+
+      let finalDmg = Math.max(15, Math.round(rawDmg - defense + (luckFactor * 0.6)));
+      let isCrit = Math.random() * 100 < (s.combatSkill * 0.3);
+
+      if (isCrit) {
+        finalDmg = Math.round(finalDmg * 1.5);
+      }
+
+      defender.hp = Math.max(0, defender.hp - finalDmg);
+      attacker.damageDealt += finalDmg;
+
+      // Pop-art FX Animation
+      triggerSFX(sfx);
+
+      // Log string
+      const critText = isCrit ? `<span class="text-red-600 font-comic text-base">CRITICAL!</span> ` : '';
+      const sideColor = attackerSide === 'A' ? 'text-cyan-700' : 'text-red-700';
+      logFn(`<span class="${sideColor} font-bold">${attacker.codename}</span> hits <span class="font-bold">${defender.codename}</span> with <b>${sfx}</b> ${critText}for <b>${finalDmg}</b> DMG!`);
+
+      // Update UI Health Bar
+      const hpBar = document.getElementById(`hp-bar-${defenderSide}-${defenderIdx}`);
+      const hpText = document.getElementById(`hp-text-${defenderSide}-${defenderIdx}`);
+      
+      if (hpBar && hpText) {
+        const hpPct = Math.max(0, (defender.hp / defender.maxHp) * 100);
+        hpBar.style.width = `${hpPct}%`;
+        hpText.textContent = `${defender.hp} / ${defender.maxHp}`;
+
+        if (hpPct < 30) {
+          hpBar.className = 'bg-red-600 h-full transition-all duration-200';
+        } else if (hpPct < 60) {
+          hpBar.className = 'bg-yellow-500 h-full transition-all duration-200';
+        }
+      }
+
+      if (defender.hp === 0) {
+        defender.isDefeated = true;
+        attacker.kills += 1;
+        logFn(`<b class="text-red-600">💥 ${defender.codename} HAS BEEN KO'D!</b>`);
+        const card = document.getElementById(`card-${defenderSide}-${defenderIdx}`);
+        if (card) {
+          card.classList.add('opacity-40', 'grayscale');
+        }
+      }
+    }
+
+    function triggerSFX(text) {
+      const layer = document.getElementById('sfx-layer');
+      const el = document.createElement('div');
+      
+      const randomX = Math.floor(Math.random() * 70) + 15;
+      const randomY = Math.floor(Math.random() * 70) + 15;
+
+      el.className = 'sfx-popup absolute font-comic text-4xl md:text-6xl text-yellow-300 drop-shadow-[4px_4px_0px_#000] stroke-black';
+      el.style.left = `${randomX}%`;
+      el.style.top = `${randomY}%`;
+      el.textContent = text;
+
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 900);
+    }
+
+    function showVictoryModal(teamName, mvp) {
+      document.getElementById('victory-team-name').textContent = `${teamName} WINS!`;
+      
+      const mvpCard = document.getElementById('mvp-card');
+      mvpCard.innerHTML = `
+        <img src="${mvp.images[0]}" class="w-20 h-20 object-cover border-2 border-black flex-shrink-0" alt="${mvp.codename}">
+        <div>
+          <div class="bg-yellow-400 font-comic text-xs px-2 py-0.5 border border-black inline-block mb-1">MATCH MVP</div>
+          <div class="font-comic text-2xl leading-none">${mvp.codename}</div>
+          <div class="text-xs font-bold text-gray-700 mt-1">Total Damage: ${mvp.damageDealt} HP</div>
+          <div class="text-xs font-bold text-red-600">Knockouts: ${mvp.kills}</div>
+        </div>
+      `;
+
+      document.getElementById('victory-modal').classList.remove('hidden');
+    }
+
+    function closeVictoryModal() {
+      document.getElementById('victory-modal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
