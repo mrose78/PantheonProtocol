@@ -158,10 +158,8 @@
               </button>
             </div>
 
-            <!-- ACTIVE ROSTER DISPLAY LIST (WITH INDIVIDUAL REMOVE BUTTONS) -->
-            <div id="roster-list-a" class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-              <!-- Roster cards injected here -->
-            </div>
+            <!-- ACTIVE ROSTER DISPLAY LIST -->
+            <div id="roster-list-a" class="space-y-2 max-h-[380px] overflow-y-auto pr-1"></div>
           </div>
         </div>
 
@@ -195,20 +193,27 @@
               </button>
             </div>
 
-            <!-- ACTIVE ROSTER DISPLAY LIST (WITH INDIVIDUAL REMOVE BUTTONS) -->
-            <div id="roster-list-b" class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-              <!-- Roster cards injected here -->
-            </div>
+            <!-- ACTIVE ROSTER DISPLAY LIST -->
+            <div id="roster-list-b" class="space-y-2 max-h-[380px] overflow-y-auto pr-1"></div>
           </div>
         </div>
 
       </div>
 
-      <!-- ENGAGE COMBAT BUTTON -->
-      <div class="text-center py-2">
+      <!-- ENGAGE COMBAT BUTTON & FASTTRACK TOGGLE -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 py-2">
         <button id="engage-btn" onclick="startBattle()" class="comic-btn bg-yellow-400 hover:bg-yellow-300 text-black text-3xl md:text-5xl px-8 py-3 uppercase tracking-wider animate-bounce">
           ⚔️ ENGAGE COMBAT! ⚔️
         </button>
+
+        <!-- FASTTRACK TOGGLE SWITCH -->
+        <label class="comic-box bg-white px-4 py-3 flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" id="fasttrack-toggle" class="w-6 h-6 accent-red-600 cursor-pointer">
+          <div class="flex flex-col">
+            <span class="font-comic text-xl leading-none text-black">⚡ FASTTRACK</span>
+            <span class="text-[10px] font-bold text-gray-600 uppercase">Instant Battle Results</span>
+          </div>
+        </label>
       </div>
 
       <!-- COMBAT DISPLAY ARENA -->
@@ -306,7 +311,6 @@
             teamAffiliations.add(c.team_affiliation.trim());
           }
 
-          // Pick single image: use the first image from CSV or fallback URL if none exist
           const selectedImage = imgs.length > 0 ? imgs[0] : DEFAULT_IMAGE_URL;
 
           characterMap.set(id, {
@@ -362,7 +366,6 @@
       const sortedChars = Array.from(characterMap.values()).sort((a, b) => a.codename.localeCompare(b.codename));
       const sortedTeams = Array.from(teamAffiliations).sort();
 
-      // Individual selects
       ['add-select-a', 'add-select-b'].forEach(selectId => {
         const select = document.getElementById(selectId);
         select.innerHTML = '<option value="">-- Select Individual Fighter --</option>';
@@ -374,7 +377,6 @@
         });
       });
 
-      // Team Group selects
       ['team-preset-a', 'team-preset-b'].forEach(presetId => {
         const select = document.getElementById(presetId);
         select.innerHTML = '<option value="">-- Load Team Affiliation (e.g. Avengers) --</option>';
@@ -400,7 +402,6 @@
         presetContainerA.classList.add('hidden');
         presetContainerB.classList.add('hidden');
         
-        // Cap rosters to 1 in 1v1 mode
         if (selectedTeamA.length > 1) selectedTeamA = [selectedTeamA[0]];
         if (selectedTeamB.length > 1) selectedTeamB = [selectedTeamB[0]];
       } else {
@@ -414,7 +415,6 @@
       renderRoster('B');
     }
 
-    // LOAD ALL MEMBERS OF A TEAM AFFILIATION
     function loadTeamPreset(side, teamName) {
       if (!teamName) return;
 
@@ -430,7 +430,6 @@
         renderRoster('B');
       }
       
-      // Reset select
       document.getElementById(`team-preset-${side.toLowerCase()}`).value = '';
     }
 
@@ -528,7 +527,8 @@
       renderArenaCards('display-team-a', teamA, 'A');
       renderArenaCards('display-team-b', teamB, 'B');
 
-      runCombatSimulation(teamA, teamB);
+      const isFasttrack = document.getElementById('fasttrack-toggle').checked;
+      runCombatSimulation(teamA, teamB, isFasttrack);
     }
 
     function createCombatant(char) {
@@ -585,11 +585,11 @@
       });
     }
 
-    function runCombatSimulation(teamA, teamB) {
+    function runCombatSimulation(teamA, teamB, isFasttrack) {
       const log = document.getElementById('battle-log');
       const badge = document.getElementById('combat-turn-badge');
       log.innerHTML = '';
-      badge.textContent = 'SIMULATING...';
+      badge.textContent = isFasttrack ? 'FASTTRACK SIMULATING...' : 'SIMULATING...';
 
       function appendLog(text, style = '') {
         const p = document.createElement('p');
@@ -601,48 +601,57 @@
 
       appendLog(`<b>⚡ BATTLE INITIALIZED ⚡</b>`, 'text-blue-600 font-bold border-b-2 border-black pb-1');
 
-      let turn = 1;
-      battleInterval = setInterval(() => {
+      const processTurn = () => {
         const activeA = teamA.filter(c => !c.isDefeated);
         const activeB = teamB.filter(c => !c.isDefeated);
 
         if (activeA.length === 0 || activeB.length === 0) {
-          clearInterval(battleInterval);
+          if (battleInterval) clearInterval(battleInterval);
           badge.textContent = 'FINISHED';
 
           const winningSide = activeA.length > 0 ? 'SIDE A (ALPHA SQUAD)' : 'SIDE B (OMEGA SQUAD)';
           const winners = activeA.length > 0 ? teamA : teamB;
           const allFighters = [...teamA, ...teamB];
           
-          // Find MVP
           const mvp = allFighters.reduce((max, fighter) => fighter.damageDealt > max.damageDealt ? fighter : max, allFighters[0]);
 
           appendLog(`<br><b class="text-lg text-red-600 bg-yellow-300 px-2 py-1 border-2 border-black block text-center">🏆 VICTORY FOR ${winningSide}! 🏆</b>`);
           
           showVictoryModal(winningSide, mvp);
-          return;
+          return true; // Match over
         }
 
-        // Random Attack pairings
         const attackerA = activeA[Math.floor(Math.random() * activeA.length)];
         const defenderB = activeB[Math.floor(Math.random() * activeB.length)];
 
-        executeAttack(attackerA, defenderB, 'A', 'B', teamB.indexOf(defenderB), appendLog);
+        executeAttack(attackerA, defenderB, 'A', 'B', teamB.indexOf(defenderB), appendLog, isFasttrack);
 
         if (!defenderB.isDefeated) {
           const defenderA = activeA[Math.floor(Math.random() * activeA.length)];
-          executeAttack(defenderB, defenderA, 'B', 'A', teamA.indexOf(defenderA), appendLog);
+          executeAttack(defenderB, defenderA, 'B', 'A', teamA.indexOf(defenderA), appendLog, isFasttrack);
         }
 
-        turn++;
-      }, 750);
+        return false;
+      };
+
+      if (isFasttrack) {
+        let isFinished = false;
+        let maxLoops = 200; // Safeguard against infinite loops
+        while (!isFinished && maxLoops > 0) {
+          isFinished = processTurn();
+          maxLoops--;
+        }
+      } else {
+        battleInterval = setInterval(() => {
+          processTurn();
+        }, 750);
+      }
     }
 
-    function executeAttack(attacker, defender, attackerSide, defenderSide, defenderIdx, logFn) {
+    function executeAttack(attacker, defender, attackerSide, defenderSide, defenderIdx, logFn, isFasttrack) {
       const s = attacker.stats;
       const sDef = defender.stats;
 
-      // Combat Calculations
       const rawDmg = (s.power * 0.45) + (s.strength * 0.35) + (s.combatSkill * 0.25);
       const defense = (sDef.durability * 0.3) + (sDef.speed * 0.15);
       
@@ -659,15 +668,14 @@
       defender.hp = Math.max(0, defender.hp - finalDmg);
       attacker.damageDealt += finalDmg;
 
-      // Pop-art FX Animation
-      triggerSFX(sfx);
+      if (!isFasttrack) {
+        triggerSFX(sfx);
+      }
 
-      // Log string
       const critText = isCrit ? `<span class="text-red-600 font-comic text-base">CRITICAL!</span> ` : '';
       const sideColor = attackerSide === 'A' ? 'text-cyan-700' : 'text-red-700';
       logFn(`<span class="${sideColor} font-bold">${attacker.codename}</span> hits <span class="font-bold">${defender.codename}</span> with <b>${sfx}</b> ${critText}for <b>${finalDmg}</b> DMG!`);
 
-      // Update UI Health Bar
       const hpBar = document.getElementById(`hp-bar-${defenderSide}-${defenderIdx}`);
       const hpText = document.getElementById(`hp-text-${defenderSide}-${defenderIdx}`);
       
